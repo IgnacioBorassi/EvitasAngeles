@@ -23,7 +23,7 @@ void* share_mem(int size);
 // Nota: sizeof es una funcion que nos dice el tamaño de un tipo, en este caso
 // atomic float.
 
-tuple<string, int> spawn_children(int max_days,int day, atomic<float> *newborns,
+tuple<string, int> spawn_children(int max_days,int day,
  								  float p, float p2, int max_children,
  								  string my_type);
 // Esta funcion simula el proceso de nacimiento de evitas y angeles que se lleva
@@ -44,6 +44,7 @@ int main(int argc, char* argv[])
 
 	// Utilizamos los parámetros que recibe main para obtener los valores de la 
 	// simulacion (ver orden en pdf)
+
 	int max_days = atoi(argv[1]); 
 	int M = atoi(argv[2]); 
 	int N = atoi(argv[3]); 
@@ -51,7 +52,19 @@ int main(int argc, char* argv[])
 	ps[0] = stof(argv[4]);
 	ps[1] = stof(argv[5]);
 	ps[2] = stof(argv[6]);
-	float eps = stof(argv[7]);
+	//float eps = stof(argv[7]);
+	cout << "Ingresa" << endl;
+	cin >> max_days;
+	cout << "Ingresa" << endl;
+	cin >> M;
+	cout << "Ingresa" << endl;
+	cin >> N;
+	cout << "Ingresa" << endl;
+	cin >> ps[0];
+	cout << "Ingresa" << endl;
+	cin >> ps[1];
+	cout << "Ingresa" << endl;
+	cin >> ps[2];
 
  	// Vamos a almacenar la cantidad de evitas/angeles nuevos al termino de cada
  	// dia en un arreglo de floats y el poder acumulado de cada especia por día.
@@ -63,9 +76,9 @@ int main(int argc, char* argv[])
  	// ocurran escrituras concurrentes sobre el mismo espacio de memoria.
  	// Pueden asumir que funciona como cualquier otro float. 
 
- 	int size = /*COMPLETAR*/;
-	atomic<float> *evitas = (atomic<float> *) share_mem(/*COMPLETAR*/);
-	atomic<float> *angeles = (atomic<float> *) share_mem(/*COMPLETAR*/);
+ 	int size = max_days;
+	atomic<float> *evitas = (atomic<float> *) share_mem(size * 2);
+	atomic<float> *angeles = (atomic<float> *) share_mem(size * 2);
 	
 	// Por las dudas, fijamos a 0 todos los valores
 	for(int i = 0;i < 2*size; i++)evitas[i] = 0;
@@ -73,16 +86,25 @@ int main(int argc, char* argv[])
 
 	// Inicializamos el conteo para para el dia 0
 	evitas[0] = 1;
+	evitas[max_days] = 0;
 	angeles[0] = 1;	
+	angeles[max_days] = 0;
   	
   	// Atributos de cada especie. Sugerencia, setear cada variable según tipo.
   	int pid;
-  	atomic<float> *newborns;
   	float max_children,p, p_beserk;
   	string my_type = "";
 
-  	// Crear a Adam y Lilith 
-	/*COMPLETAR*/
+  	// Crear a Adam y Lilit
+	int adam = fork();
+	my_type = "Angeles";
+	max_children=N;
+
+	  if (adam > 0) {
+		   int lilit = fork();
+		   my_type = "Evitas";
+		   max_children=M;
+	  }
 
 	// El control de la simulación debería esperar la finalización para comenzar
 	// a computar la información necesaria.
@@ -90,21 +112,46 @@ int main(int argc, char* argv[])
 	// En este punto, solo Adam y Lilith deberian llegar
 
   	// Variables que representan los dias y la cantidad de hijos de un día.
- 	int day, nchildren;
- 	
+ 	int day;
+	int nchildren;
+ 	string type = "";
+
  	// Corremos las simulaciones de nacimiento
-	for(day = 1; day < max_days; day++)
+	for(int day = 1; day < max_days; day++)
 	{
 		// Simulamos un dia y obtenemos los resultados
-		tuple<string,int> result = spawn_children(max_days,day,newborns, p,
-												  p_beserk, max_children,my_type);
-		string type = get<0>(result);
-		nchildren = get<1>(result);
-	
-		if (type == "parent")
-		{	
+
+		if (my_type == "Angeles"){
+			tuple<string,int> result = spawn_children(max_days,day, ps[0],
+													p_beserk, max_children,my_type);
 			
+			type = get<0>(result);
+			nchildren = get<1>(result);
 		}
+		else if (my_type == "Evitas"){
+			tuple<string,int> result = spawn_children(max_days,day, ps[1],
+													p_beserk, max_children,my_type);
+			
+			string type = get<0>(result);
+			int nchildren = get<1>(result);
+		}
+		{
+			/* code */
+		}
+		
+		if (day == max_days && type != "parent"){
+			exit(0);
+		}
+		if (type == "parent")	
+		{	
+			for (int i = 0; i < nchildren; i++ ){
+				wait(NULL);
+				exit(0);
+			}
+		}
+
+		printf("[%d][dia %d] %s hoja, engendrado de %d \n",getpid(),
+			day,my_type.c_str(), getppid());
 
 		// Si llego acá, es porque nací en este día.
 		// Tengo que avanzar al próximo día de la simulación	
@@ -112,9 +159,15 @@ int main(int argc, char* argv[])
 		assert(type != "parent");
 		continue;
 	}
-
-	printf("[%d][dia %d] %s hoja, engendrado de %d \n",getpid(),
-			day,my_type.c_str(), getppid());
+	
+	for(int day = 1; day < max_days; day++){
+		if (angeles[max_days + day] == evitas[max_days + day]){
+			printf("Flaco hoy, [%d], se pueden morir todos", day);
+		}
+		else{
+			printf("Flaco hoy NO, [%d], nos morimos nosotros", day);
+		}
+	}
 
 }
 
@@ -133,7 +186,7 @@ void* share_mem(int size)
 }
 
 
-tuple<string, int> spawn_children(int max_days,int day, atomic<float> *newborns,
+tuple<string, int> spawn_children(int max_days,int day,
 		 						  float p, float p2, int max_children, 
 		 						  string my_type)
 {
@@ -154,12 +207,29 @@ tuple<string, int> spawn_children(int max_days,int day, atomic<float> *newborns,
  	// Inicializamos un generador con distribucion normal
  	normal_distribution<double> ap_distribution(u,std);
 
+	evitas[max_days + day] = evitas[max_days + day - 1];
+	angeles[max_days + day] = angeles[max_days + day - 1];
+
 	for(int i = 0; i < max_children; i++)
 	{
+		float existir = distribution(generator);
+		float poder = ap_distribution(generator);
+		bool isBorn = false;
 		// Simulamos un experimento de nacimiento. 
 		// Ej: Si p = 0.2  y el valor obtenido es <= a 0.2, el evita actual
 		// tiene exito en crear un nuevo hijo
-		bool isBorn =  /*COMPLETAR*/;
+		if (my_type == "Evitas"){
+			if (existir <= p){
+				isBorn = true;
+			}
+			
+		}
+		else {
+			if (existir <= p){
+				isBorn = true;
+			}
+		}
+		
 
 		// Si hay nacimiento tenemos que crear al evita/angel para que luego
 		// en day+1 continue con la simulación
@@ -167,7 +237,25 @@ tuple<string, int> spawn_children(int max_days,int day, atomic<float> *newborns,
 		{
 			// Actualizar las estructuras necesarias
 			/*COMPLETAR*/
+				if (my_type == "Evitas"){
+					evitas[day] += 1;
+					if (p2 == existir){
+						poder = poder*2;
+						my_type="parent";
+					}
+					evitas[max_days + day] += poder;
+				}
+				else {
+					angeles[day] += 1;
+					int anterior = angeles[max_days + day - 1];
+					angeles[max_days + day] += poder;
+
+				}
+				pid = fork();
+				nchildren += 1;
+
 		}
+		
 	}
 	if (pid == -1 || pid > 0)
 		my_type = "parent"; 
