@@ -9,6 +9,7 @@
 #include <atomic>
 #include <tuple>
 #include <cassert>
+#include <fstream>
  
 using namespace std;
  
@@ -23,9 +24,9 @@ void* share_mem(int size);
 // Nota: sizeof es una funcion que nos dice el tamaño de un tipo, en este caso
 // atomic float.
  
-tuple<string, int> spawn_children(int max_days,int day,
+tuple<string, int, float> spawn_children(int max_days,int day,
                                   float p, float p2, int max_children,
-                                  string my_type, std::atomic<float>*& lista);
+                                  string my_type, std::atomic<float>*& lista, float poder);
 // Esta funcion simula el proceso de nacimiento de evitas y angeles que se lleva
 // a cabo en el dia day. Tener en cuenta que esta función será ejecutada por
 // todos los evitas/angeles que puedan reproducirse en el dia day.
@@ -44,7 +45,11 @@ int main()
  
     // Utilizamos los parámetros que recibe main para obtener los valores de la
     // simulacion (ver orden en pdf)
- 
+ 	int max_days;
+    int M;
+    int N;
+    float ps[3];
+    float eps;
     //int max_days = atoi(argv[1]);
     //int M = atoi(argv[2]);
     //int N = atoi(argv[3]);
@@ -52,27 +57,22 @@ int main()
     //ps[0] = stof(argv[4]);
     //ps[1] = stof(argv[5]);
     //ps[2] = stof(argv[6]);
-    //cout << "Ingresa" << endl;
-    //cin >> max_days;
-    //cout << "Ingresa" << endl;
-    //cin >> M;
-    //cout << "Ingresa" << endl;
-    //cin >> N;
-    //cout << "Ingresa" << endl;
-    //cin >> ps[0];
-    //cout << "Ingresa" << endl;
-    //cin >> ps[1];
-    //cout << "Ingresa" << endl;
-    //cin >> ps[2];
- 
-    int max_days = 3;
-    int M = 3;
-    int N = 3;
-    float ps[3];
-    ps[0] = 0.3;
-    ps[1] = 0.3;
-    ps[2] = 0.2;
-    float eps = 50;
+    cout << "Max_Days: ";
+    cin >> max_days;
+    cout << "Intentos Evitas: ";
+    cin >> M;
+    cout << "Intentos Angeles: ";
+    cin >> N;
+    cout << "Chance Evitas: ";
+    cin >> ps[0];
+    cout << "Chance Angeles: ";
+    cin >> ps[1];
+    cout << "Chance Berserk: ";
+    cin >> ps[2];
+	cout << "Margen: ";
+    cin >> eps;
+	string parametros = "(" + std::to_string(max_days) + " " + std::to_string(M) + " " + std::to_string(N) + " " + std::to_string(ps[0]) + " " + std::to_string(ps[1]) + " " + std::to_string(ps[2]) + ")";
+    
  
  
     // Vamos a almacenar la cantidad de evitas/angeles nuevos al termino de cada
@@ -95,9 +95,9 @@ int main()
  
     // Inicializamos el conteo para para el dia 0
     evitas[0] = 1;
-    evitas[max_days] = 0;
+    evitas[max_days] = 1;
     angeles[0] = 1;
-    angeles[max_days] = 0;
+    angeles[max_days] = 1;
    
     // Atributos de cada especie. Sugerencia, setear cada variable según tipo.
     int pid;
@@ -105,6 +105,7 @@ int main()
     string my_type = "";
  
     // Crear a Adam y Lilith
+	cout << "****** Simulacion ******" << endl;
     pid = fork();
     my_type = "Angeles";
     max_children=N;
@@ -128,6 +129,8 @@ int main()
     if (pid == 0 ){
         int day;
         int nchildren;
+		float poder;
+		poder = 1;
         string type = "";
  
         // Corremos las simulaciones de nacimiento
@@ -137,41 +140,32 @@ int main()
             // Simulamos un dia y obtenemos los resultados
  
             if (my_type == "Angeles"){
-                tuple<string,int> result = spawn_children(max_days,day, ps[0],
-                                                        p_beserk, max_children, my_type, angeles);
-               
+                tuple<string,int, float> result = spawn_children(max_days,day, ps[0],
+                                                        p_beserk, max_children, my_type, angeles, poder);
                 type = get<0>(result);
                 nchildren = get<1>(result);
+				poder = get<2>(result);
             }
             else if (my_type == "Evitas"){
-                tuple<string,int> result = spawn_children(max_days,day, ps[1],
-                                                        p_beserk, max_children, my_type, evitas);
-               
+                tuple<string, int, float> result = spawn_children(max_days,day, ps[1],
+                                                        p_beserk, max_children, my_type, evitas, poder);
                 type = get<0>(result);
                 nchildren = get<1>(result);
+				poder = get<2>(result);
+
             }
-           
-           
-           
-            printf("[%d][dia %d] %s hoja, engendrado de %d \n",getpid(),
-                day,my_type.c_str(), getppid());
- 
+
             // Si llego acá, es porque nací en este día.
             // Tengo que avanzar al próximo día de la simulación    
             if (type == "parent")  
             {  
-                for (int i = 0; i < nchildren; i++ ){
-                    wait(NULL);
-                    printf("[%d]Mori y fui padret, y tuve [%d] pibes \n",getpid(), nchildren);
-                }
-                exit(0);
+				cout << " Pid: "<< getpid() <<" PPID:"<< getppid() << " Poder: " << poder <<  " Hijos: "<< nchildren << " Tipo: " << my_type << " Dia: " << day <<endl;
+				exit(0);
             }
             if (day == (max_days-1) && type != "parent"){
-                printf("[%d]Mori y soy %s \n",getpid(), type.c_str());
+				cout << " Pid: "<< getpid() <<" PPID:"<< getppid() << " Poder: " << poder <<  " Hijos: "<< nchildren << " Tipo: " << my_type << " Dia: " << day <<endl;
                 exit(0);
             }
-           
- 
  
             assert(type != "parent");
             continue;
@@ -179,17 +173,48 @@ int main()
         }
         exit(0);
     }
-//if evitas[max_days + day] < (angeles[max_days + day] + eps) or (evitas[max_days + day] > angeles[max_days + day] - eps) or
-        //    (angeles[max_days + day] < evitas[max_days + day] + eps) or (angeles[max_days + day] < evitas[max_days + day] - eps)
+	cout << "****** Resultados ******" << endl;
     for(int day = 1; day < max_days; day++){
-        cout<<evitas[max_days + day]<<endl;
-        cout<<angeles[max_days + day]<<endl;
+        // Si una lista se quedan sin nacimientos, completamos el poder en las restantes
+        for (int day = 1; day < max_days; day++){
+            if (evitas[max_days + day] == 0){
+                evitas[max_days + day] = evitas[max_days+day-1]+1-1;
+            }
+            if (angeles[max_days + day] == 0){
+                angeles[max_days + day] = evitas[max_days+day-1]+1-1;
+            }
+        }
+        // Llenar el .csv
+		fstream Datos;
+		Datos.open("datos.csv", ios::out | ios::app);
+		cout << "Dia: " << day << endl;
+		cout << "Nacen: "<< evitas[day] << " evitas" << " y el poder total es de "<< evitas[day + max_days] << endl;
+        cout << "Nacen: "<< angeles[day] << " angeles" << " y el poder total es de "<< angeles[day + max_days] << endl;
+        if (day == 1){
+            Datos << "Parametros"<<";"
+                  << "Dia" << ";"
+                  << "Evitas"<< ";"
+                  << "Angeles"
+                  << "\n";
+			Datos << parametros<< ";"
+                << day << ";"
+                << evitas[day]<< ";"
+                << angeles[day]
+                << "\n";
+		}
+		else{
+			Datos << parametros << ";" 
+            << day << ";"
+                << evitas[day]<< ";"
+                << angeles[day]
+                << "\n";
+		}
         if ((evitas[max_days + day] < (angeles[max_days + day] + eps) && (evitas[max_days + day] > angeles[max_days + day] - eps)) ||
             ((angeles[max_days + day] < evitas[max_days + day] + eps) && (angeles[max_days + day] < evitas[max_days + day] - eps))){
-            printf("Flaco hoy, [%d], se pueden morir todos \n", day);
+            printf("Flaco hoy, dia %d, les ganamos \n", day);
         }
         else{
-            printf("Flaco hoy NO, [%d], nos morimos nosotros \n", day);
+            printf("Flaco hoy NO, dia %d, nos morimos nosotros \n", day);
         }
     }
  
@@ -210,9 +235,9 @@ void* share_mem(int size)
 }
  
  
-tuple<string, int> spawn_children(int max_days,int day,
+tuple<string, int, float> spawn_children(int max_days,int day,
                                   float p, float p2, int max_children,
-                                  string my_type, std::atomic<float>*& lista)
+                                  string my_type, std::atomic<float>*& lista, float poder)
 {
     //
     int nchildren = 0;
@@ -225,33 +250,32 @@ tuple<string, int> spawn_children(int max_days,int day,
     // Inicializamos un generador con distribucion uniforme en el intervalo (0,1)
     // La semilla es aleatoria, pero puede ser util fijarla para facilitar las pruebas  
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    default_random_engine generator (3);
+    default_random_engine generator (10);
     uniform_real_distribution<double> distribution(0.0,1.0);
  
     // Inicializamos un generador con distribucion normal
     normal_distribution<double> ap_distribution(u,std);
     int anterior;
+	float poderH;
+	tuple<string, int, float> resultado;
     anterior = lista[(max_days + day) - 1];
-    cout << anterior << endl;
     lista[max_days + day] = anterior;
- 
+	int i = 1;
+	
     for(int i = 0; i < max_children; i++)
     {
-        float existir = distribution(generator);
-        float poder = ap_distribution(generator);
         bool isBorn = false;
-       
         // Simulamos un experimento de nacimiento.
         // Ej: Si p = 0.2  y el valor obtenido es <= a 0.2, el evita actual
         // tiene exito en crear un nuevo hijo
         if (my_type == "Evitas"){
-            if (existir <= p){
+            if (distribution(generator) <= p){
                 isBorn = true;
             }
            
         }
         else {
-            if (existir <= p){
+            if (distribution(generator) <= p){
                 isBorn = true;
             }
         }
@@ -262,31 +286,43 @@ tuple<string, int> spawn_children(int max_days,int day,
         {
             // Actualizar las estructuras necesarias
             /*COMPLETAR*/
-           
+			poderH = ap_distribution(generator);
+			
             if (my_type == "Evitas"){
                 lista[day] = lista[day] + 1;
-                if (p2 == existir){
-                    poder = poder*2;
+                if (p2 == distribution(generator)){
+					my_type = "parent";
+					poderH=poderH*2;
+                    lista[max_days + day] = lista[max_days + day] + poderH;
                 }
-                lista[max_days + day] = lista[max_days + day] + poder;
-            }
+				else{
+					lista[max_days + day] = lista[max_days + day] + poderH;
+				}
+			}
             else {
                 lista[day] = lista[day] + 1;
-                lista[max_days + day] = lista[max_days + day] + poder;
- 
+                lista[max_days + day] = lista[max_days + day] + poderH;
             }
-            nchildren += 1;
+			nchildren += 1;
             pid = fork();
- 
         }
- 
-        if (pid == 0){
-            return make_tuple(my_type, nchildren);
+		
+
+		if (pid == 0){
+			resultado = make_tuple(my_type, 0, poderH);
+			return resultado;
         }
+	
+		
     }
     if (pid == -1 || pid > 0){
         my_type = "parent";
+		for (int i = 0; i < nchildren; i++ ){
+            wait(NULL);
+        }
+		resultado = make_tuple(my_type, nchildren, poder);
     }
-   
-    return make_tuple(my_type, nchildren);
+
+	return resultado;
 }
+ 
